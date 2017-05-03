@@ -44,7 +44,7 @@ function login(client,ca_client,username,password){
     }).then(() => {
         return member;
     }).catch((err) => {
-        console.log('无法注册用戶。Error: ' + err.stack ? err.stack : err);
+        console.log('無法註冊用戶。Error: ' + err.stack ? err.stack : err);
         throw new Error('無法獲取注册用戶');
     });
 }
