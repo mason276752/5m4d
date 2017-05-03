@@ -89,7 +89,7 @@ logger.debug('\n============ Query Block ============\n')
 	chain.addPeer(peer0)
 
 	return hfc.newDefaultKeyValueStore({
-    	path: "./keypath_"+orgName
+    	path: __dirname+"/keypath_"+orgName
 	}).then((store) => {
 		client.setStateStore(store);
     	return getUserContext(client,"http://localhost:7054","admin","adminpw")
@@ -103,6 +103,7 @@ logger.debug('\n============ Query Block ============\n')
 		logger.error('Failed to get submitter \'admin\'. Error: ' + err.stack ? err.stack : err );
 	}).then((response_payloads) => {
 		if (response_payloads) {
+			console.log(JSON.stringify( response_payloads))
 			console.log(response_payloads)
 			logger.debug('\n============ Query Block is SUCCESS ============\n')
 		} else {

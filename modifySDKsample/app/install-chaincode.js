@@ -29,21 +29,14 @@ var copService = require('fabric-ca-client/lib/FabricCAClientImpl.js');
 var log4js = require('log4js');
 var logger = log4js.getLogger("Install-Chaincode");
 logger.setLevel('DEBUG');
-var tx_id = null;
-var nonce = null;
-var adminUser = null;
-var mspid = null;
-process.env.GOPATH=path.join(__dirname, "../artifacts");
-
-//##################
-
+//##########################
 function login(client,ca_client,username,password){
     var member=null;
     return ca_client.enroll({
         enrollmentID: username,
         enrollmentSecret: password
     }).then((enrollment) => {
-        console.log('Successfully enrolled user \'' + username + '\'');
+        console.log('成功註冊用戶： \'' + username + '\'');
         member = new User(username, client);
         return member.setEnrollment(enrollment.key, enrollment.certificate, mspid);
     }).then(() => {
@@ -51,17 +44,16 @@ function login(client,ca_client,username,password){
     }).then(() => {
         return member;
     }).catch((err) => {
-        console.log('Failed to enroll and persist user. Error: ' + err.stack ? err.stack : err);
-        throw new Error('Failed to obtain an enrolled user');
+        console.log('无法注册用戶。Error: ' + err.stack ? err.stack : err);
+        throw new Error('無法獲取注册用戶');
     });
 }
 function getUserContext(client,caUrl,username,password){
     return client.getUserContext(username).then((user) => {
         if (user && user.isEnrolled()) {
-            console.log('Successfully loaded member from persistence');
+            console.log('從檔案成功載入成員');
             return user;
         } else {
-            // need to enroll it with CA server
             var ca_client = new copService(caUrl);
             
             return login(client,ca_client,username,password)
@@ -69,18 +61,31 @@ function getUserContext(client,caUrl,username,password){
     });
 }
 
-//##################
+//##########################
+var tx_id = null;
+var nonce = null;
+var adminUser = null;
+var mspid = null;
+process.env.GOPATH=path.join(__dirname, "../artifacts");
+
 logger.debug('\n============ Install Chaincode ============\n')
+
+
+//Promise
+//.then
+//  Install Chaincode peer in Org1
+//.then
+//  Install Chaincode peer in Org2
 new Promise((resolve, reject)=>{
 	resolve(true)
 }).then(()=>{
 	var client = new hfc();
 	var channelName="mychannel";
-
-	var chain = client.newChain(channelName);
 	mspid="Org1MSP"
 	var orgName = "peerOrg1";
+	var chain = client.newChain(channelName);
 	var targets = []
+
 	var data=fs.readFileSync(path.join(__dirname, "../artifacts/tls/orderer/ca-cert.pem"));
 	chain.addOrderer(
 	new Orderer(
@@ -91,7 +96,6 @@ new Promise((resolve, reject)=>{
 			}
 		)
 	);
-
 
 	data = fs.readFileSync(path.join(__dirname,"../artifacts/tls/peers/peer0/ca-cert.pem"));
 	var peer0=new Peer(
@@ -116,13 +120,13 @@ new Promise((resolve, reject)=>{
 	chain.addPeer(peer1)
 
 	return hfc.newDefaultKeyValueStore({
-		path: "./keypath_"+orgName
+		path: __dirname+"/keypath_"+orgName
 	}).then((store) => {
 		client.setStateStore(store);
 		return getUserContext(client,"http://localhost:7054","admin","adminpw")
 	})
 	.then((admin) => {
-		logger.info('Successfully enrolled user \'admin\'');
+		logger.info('成功註冊用戶 \'admin\'');
 		adminUser = admin;
 
 		nonce = utils.getNonce();
@@ -141,8 +145,8 @@ new Promise((resolve, reject)=>{
 		return chain.sendInstallProposal(request);
 	},
 	(err) => {
-		logger.error('Failed to enroll user \'admin\'. ' + err);
-		throw new Error('Failed to enroll user \'admin\'. ' + err);
+		logger.error('無法註冊用戶 \'admin\'. ' + err);
+		throw new Error('無法註冊用戶 \'admin\'. ' + err);
 	}).then((results) => {
 		var proposalResponses = results[0];
 
@@ -153,30 +157,30 @@ new Promise((resolve, reject)=>{
 			let one_good = false;
 			if (proposalResponses && proposalResponses[0].response && proposalResponses[0].response.status === 200) {
 				one_good = true;
-				logger.info('install proposal was good');
+				logger.info('Install請求良好');
 			} else {
-				logger.error('install proposal was bad');
+				logger.error('Install請求不好');
 			}
 			all_good = all_good & one_good;
 		}
 		if (all_good) {
-			logger.info(util.format('Successfully sent install Proposal and received ProposalResponse: Status - %s', proposalResponses[0].response.status));
+			logger.info(util.format('成功傳送Install請求並收到回覆: Status - %s', proposalResponses[0].response.status));
 		} else {
-			logger.error('Failed to send install Proposal or receive valid response. Response null or status is not 200. exiting...');
+			logger.error('無法傳送Install請求或收到無效回覆。Response is null 或 Status not 200 .結束');
 		}
 	},
 	(err) => {
-		logger.error('Failed to send install proposal due to error: ' + err.stack ? err.stack : err);
-		throw new Error('Failed to send install proposal due to error: ' + err.stack ? err.stack : err);
+		logger.error('無法傳送Install error: ' + err.stack ? err.stack : err);
+		throw new Error('無法傳送Install error: ' + err.stack ? err.stack : err);
 	});
 }).then(()=>{
 	var client = new hfc();
 	var channelName="mychannel";
-
-	var chain = client.newChain(channelName);
 	mspid="Org2MSP"
 	var orgName = "peerOrg2";
+	var chain = client.newChain(channelName);
 	var targets = [], eventhubs = [];
+
 	var data=fs.readFileSync(path.join(__dirname, "../artifacts/tls/orderer/ca-cert.pem"));
 	chain.addOrderer(
 	new Orderer(
@@ -187,7 +191,6 @@ new Promise((resolve, reject)=>{
 			}
 		)
 	);
-
 
 	data = fs.readFileSync(path.join(__dirname,"../artifacts/tls/peers/peer2/ca-cert.pem"));
 	var peer2=new Peer(
@@ -211,15 +214,14 @@ new Promise((resolve, reject)=>{
 	targets.push(peer3);
 	chain.addPeer(peer3)
 
-
 	return hfc.newDefaultKeyValueStore({
-		path: "./keypath_"+orgName
+		path: __dirname+"/keypath_"+orgName
 	}).then((store) => {
 		client.setStateStore(store);
 		return getUserContext(client,"http://localhost:8054","admin","adminpw")
 	})
 	.then((admin) => {
-		logger.info('Successfully enrolled user \'admin\'');
+		logger.info('成功註冊用戶 \'admin\'');
 		adminUser = admin;
 
 		nonce = utils.getNonce();
@@ -238,8 +240,8 @@ new Promise((resolve, reject)=>{
 		return chain.sendInstallProposal(request);
 	},
 	(err) => {
-		logger.error('Failed to enroll user \'admin\'. ' + err);
-		throw new Error('Failed to enroll user \'admin\'. ' + err);
+		logger.error('無法註冊用戶 \'admin\'. ' + err);
+		throw new Error('無法註冊用戶 \'admin\'. ' + err);
 	}).then((results) => {
 		var proposalResponses = results[0];
 
@@ -250,24 +252,25 @@ new Promise((resolve, reject)=>{
 			let one_good = false;
 			if (proposalResponses && proposalResponses[0].response && proposalResponses[0].response.status === 200) {
 				one_good = true;
-				logger.info('install proposal was good');
+				logger.info('Install請求良好');
 			} else {
-				logger.error('install proposal was bad');
+				logger.error('Install請求不好');
 			}
 			all_good = all_good & one_good;
 		}
 		if (all_good) {
-			logger.info(util.format('Successfully sent install Proposal and received ProposalResponse: Status - %s', proposalResponses[0].response.status));
+			logger.info(util.format('成功傳送Install請求並收到回覆: Status - %s', proposalResponses[0].response.status));
+			logger.debug('\n============ Install is SUCCESS ============\n')
 		} else {
-			logger.error('Failed to send install Proposal or receive valid response. Response null or status is not 200. exiting...');
+			logger.error('無法傳送Install請求或收到無效回覆。Response is null 或 Status not 200 .結束');
 		}
 	},
 	(err) => {
-		logger.error('Failed to send install proposal due to error: ' + err.stack ? err.stack : err);
-		throw new Error('Failed to send install proposal due to error: ' + err.stack ? err.stack : err);
+		logger.error('無法傳送Install error: ' + err.stack ? err.stack : err);
+		throw new Error('無法傳送Install error: ' + err.stack ? err.stack : err);
 	});
 }).then(()=>{
-	logger.debug('\n============ Install is  is SUCCESS ============\n')
+	
 },(err)=>{
-
+	logger.debug('\n!!!!!!!! ERROR: Install失敗 !!!!!!!!\n')
 })

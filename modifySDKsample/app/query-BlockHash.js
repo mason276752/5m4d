@@ -73,9 +73,7 @@ logger.debug('\n============ Query Block Hash ============\n')
 	var mspid="Org1MSP"
 
 	var targets = [];
-	// set up the chain to use each org's 'peer1' for
-	// both requests and events
-	
+
 	data = fs.readFileSync(path.join(__dirname,"../artifacts/tls/peers/peer0/ca-cert.pem"));
 	var peer0=new Peer(
 		"grpcs://localhost:7051",
@@ -88,13 +86,12 @@ logger.debug('\n============ Query Block Hash ============\n')
 	chain.addPeer(peer0)
 
 	return hfc.newDefaultKeyValueStore({
-    	path: "./keypath_"+orgName
+    	path: __dirname+"/keypath_"+orgName
 	}).then((store) => {
 		client.setStateStore(store);
     	return getUserContext(client,"http://localhost:7054","admin","adminpw")
 	}).then((admin) => {
 		adminUser = admin;
-		
 		return chain.queryBlockByHash(hash);
 	},
 	(err) => {
@@ -102,6 +99,7 @@ logger.debug('\n============ Query Block Hash ============\n')
 		logger.error('Failed to get submitter \'admin\'. Error: ' + err.stack ? err.stack : err );
 	}).then((response_payloads) => {
 		if (response_payloads) {
+			console.log(JSON.stringify( response_payloads))
 			console.log(response_payloads)
 			logger.debug('\n============ Query Block Hash is SUCCESS ============\n')
 		} else {

@@ -28,7 +28,7 @@ var copService = require('fabric-ca-client/lib/FabricCAClientImpl.js');
 var log4js = require('log4js');
 var logger = log4js.getLogger("Create-Channel");
 logger.setLevel('DEBUG');
-
+//##########################
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -38,7 +38,7 @@ function login(client,ca_client,username,password){
         enrollmentID: username,
         enrollmentSecret: password
     }).then((enrollment) => {
-        console.log('Successfully enrolled user \'' + username + '\'');
+        console.log('成功註冊用戶： \'' + username + '\'');
         member = new User(username, client);
         return member.setEnrollment(enrollment.key, enrollment.certificate, mspid);
     }).then(() => {
@@ -46,30 +46,31 @@ function login(client,ca_client,username,password){
     }).then(() => {
         return member;
     }).catch((err) => {
-        console.log('Failed to enroll and persist user. Error: ' + err.stack ? err.stack : err);
-        throw new Error('Failed to obtain an enrolled user');
+        console.log('无法注册用戶。Error: ' + err.stack ? err.stack : err);
+        throw new Error('無法獲取注册用戶');
     });
 }
 function getUserContext(client,caUrl,username,password){
     return client.getUserContext(username).then((user) => {
         if (user && user.isEnrolled()) {
-            console.log('Successfully loaded member from persistence');
+            console.log('從檔案成功載入成員');
             return user;
         } else {
-            // need to enroll it with CA server
             var ca_client = new copService(caUrl);
             
             return login(client,ca_client,username,password)
         }
     });
 }
+//##########################
 var client = new hfc();
 var channelName="mychannel"
 var chain = client.newChain(channelName);
+var orgName = "peerOrg1"
+var mspid="Org1MSP"
 
 
-
-logger.debug('\n============ Create Channel ============\n')
+logger.debug('\n============ 創建通道 ============\n')
 var data=fs.readFileSync(path.join(__dirname, "../artifacts/tls/orderer/ca-cert.pem"));
 chain.addOrderer(
 	new Orderer(
@@ -81,16 +82,15 @@ chain.addOrderer(
 	)
 );
 
-var org = "peerOrg1"
-var mspid="Org1MSP"
+
 hfc.newDefaultKeyValueStore({
-	path: "./keypath_"+org
+	path: __dirname+"/keypath_"+orgName
 }).then((store) => {
 	client.setStateStore(store);
 	return getUserContext(client,"http://localhost:7054","admin","adminpw")
 })
 .then((admin) => {
-	logger.debug('Successfully enrolled user \'admin\'');
+	logger.debug('成功註冊用戶： \'admin\'');
 	// readin the envelope to send to the orderer
 	var data = fs.readFileSync(path.join(__dirname, "../artifacts/channel/mychannel.tx"))
 	var request = {
@@ -99,24 +99,23 @@ hfc.newDefaultKeyValueStore({
 	// send to orderer
 	return chain.createChannel(request);
 }, (err) => {
-	logger.error('Failed to enroll user \'admin\'. ' + err);
+	logger.error('無法註冊用戶： \'admin\'. ' + err);
 })
 .then((response) => {
-	logger.debug(' response ::%j',response);
-
+	logger.debug('Response:%j',response);
 	if (response && response.status === 'SUCCESS') {
-		logger.debug('Successfully created the channel.');
+		logger.debug('成功創建通道');
 		return sleep(5000);
 	} else {
-		logger.error('Failed to create the channel. ');
-		logger.debug('\n!!!!!!!!! Failed to create the channel \''+channelName+'\' !!!!!!!!!\n\n')
+		logger.error('無法創建通道. ');
+		logger.debug('\n!!!!!!!!! 無法創建通道： \''+channelName+'\' !!!!!!!!!\n\n')
 	}
 }, (err) => {
-	logger.error('Failed to initialize the channel: ' + err.stack ? err.stack : err);
+	logger.error('無法初始化通道: ' + err.stack ? err.stack : err);
 })
 .then((nothing) => {
-	logger.debug('Successfully waited to make sure channel \''+channelName+'\' was created.');
-	logger.debug('\n====== Channel creation \''+channelName+'\' completed ======\n\n')
+	logger.debug('成功地等待確認頻道建立： \''+channelName+'\' .');
+	logger.debug('\n====== 創建通道 \''+channelName+'\' 完成 ======\n\n')
 }, (err) => {
-	logger.error('Failed to sleep due to error: ' + err.stack ? err.stack : err);
+	logger.error('由於錯誤而無法sleep: ' + err.stack ? err.stack : err);
 });

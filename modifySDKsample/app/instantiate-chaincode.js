@@ -29,15 +29,14 @@ var copService = require('fabric-ca-client/lib/FabricCAClientImpl.js');
 var log4js = require('log4js');
 var logger = log4js.getLogger("Instantiate-Chaincode");
 logger.setLevel('DEBUG');
-//###################
-
+//##########################
 function login(client,ca_client,username,password){
     var member=null;
     return ca_client.enroll({
         enrollmentID: username,
         enrollmentSecret: password
     }).then((enrollment) => {
-        console.log('Successfully enrolled user \'' + username + '\'');
+        console.log('成功註冊用戶： \'' + username + '\'');
         member = new User(username, client);
         return member.setEnrollment(enrollment.key, enrollment.certificate, mspid);
     }).then(() => {
@@ -45,17 +44,16 @@ function login(client,ca_client,username,password){
     }).then(() => {
         return member;
     }).catch((err) => {
-        console.log('Failed to enroll and persist user. Error: ' + err.stack ? err.stack : err);
-        throw new Error('Failed to obtain an enrolled user');
+        console.log('无法注册用戶。Error: ' + err.stack ? err.stack : err);
+        throw new Error('無法獲取注册用戶');
     });
 }
 function getUserContext(client,caUrl,username,password){
     return client.getUserContext(username).then((user) => {
         if (user && user.isEnrolled()) {
-            console.log('Successfully loaded member from persistence');
+            console.log('從檔案成功載入成員');
             return user;
         } else {
-            // need to enroll it with CA server
             var ca_client = new copService(caUrl);
             
             return login(client,ca_client,username,password)
@@ -63,7 +61,7 @@ function getUserContext(client,caUrl,username,password){
     });
 }
 
-//###################
+//##########################
 
 var tx_id = null;
 var nonce = null;
@@ -88,164 +86,159 @@ process.on('exit', function() {
 
 
 logger.debug('\n============ Instantiate Chaincode ============\n')
-	var client = new hfc();
-	var channelName="mychannel"
-	var chain = client.newChain(channelName);
-	var data=fs.readFileSync(path.join(__dirname, "../artifacts/tls/orderer/ca-cert.pem"));
-	chain.addOrderer(
-	new Orderer(
-			"grpcs://localhost:7050",
-			{
-				'pem': Buffer.from(data).toString(),
-				'ssl-target-name-override': "orderer0"
-			}
-		)
-	);
-	mspid="Org1MSP"
-	var orgName = "peerOrg1";
+var client = new hfc();
+var channelName="mychannel"
+var orgName = "peerOrg1";
+var chain = client.newChain(channelName);
+var eventhubs = [];
+mspid="Org1MSP"
 
-	var targets = [],
-		eventhubs = [];
-
-	data = fs.readFileSync(path.join(__dirname,"../artifacts/tls/peers/peer0/ca-cert.pem"));
-	var peer0=new Peer(
-		"grpcs://localhost:7051",
+var data=fs.readFileSync(path.join(__dirname, "../artifacts/tls/orderer/ca-cert.pem"));
+chain.addOrderer(
+new Orderer(
+		"grpcs://localhost:7050",
 		{
-			pem: Buffer.from(data).toString(),
-			'ssl-target-name-override': "peer0"
+			'pem': Buffer.from(data).toString(),
+			'ssl-target-name-override': "orderer0"
 		}
 	)
-	targets.push(peer0);
-	chain.addPeer(peer0)
+);
 
 
-	var eh = new EventHub();
-	eh.setPeerAddr(
-		"grpcs://localhost:7053",
-		{
-			pem: Buffer.from(data).toString(),
-			'ssl-target-name-override': "peer0"
+
+data = fs.readFileSync(path.join(__dirname,"../artifacts/tls/peers/peer0/ca-cert.pem"));
+var peer0=new Peer(
+	"grpcs://localhost:7051",
+	{
+		pem: Buffer.from(data).toString(),
+		'ssl-target-name-override': "peer0"
+	}
+)
+chain.addPeer(peer0)
+
+var eh = new EventHub();
+eh.setPeerAddr(
+	"grpcs://localhost:7053",
+	{
+		pem: Buffer.from(data).toString(),
+		'ssl-target-name-override': "peer0"
+	}
+);
+eh.connect();
+eventhubs.push(eh);
+allEventhubs.push(eh);
+
+hfc.newDefaultKeyValueStore({
+	path: __dirname+"/keypath_"+orgName
+}).then((store) => {
+	client.setStateStore(store);
+return getUserContext(client,"http://localhost:7054","admin","adminpw")
+}).then((admin) => {
+	logger.info('成功註冊用戶 \'admin\'');
+	adminUser = admin;
+	return chain.initialize();
+}, (err) => {
+	logger.error('無法註冊用戶 \'admin\'. ' + err);
+	throw new Error('無法註冊用戶 \'admin\'. ' + err);
+
+}).then((success) => {
+
+	nonce = utils.getNonce();
+	tx_id = chain.buildTransactionID(nonce, adminUser);
+
+	// send proposal to endorser
+	var request = {
+		chaincodePath: "github.com/example_cc",
+		chaincodeId: "mycc",
+		chaincodeVersion: "v0",
+		fcn: "init",
+		args: ["a","100","b","200"],
+		chainId: channelName,
+		txId: tx_id,
+		nonce: nonce
+	};
+	return chain.sendInstantiateProposal(request);
+
+}, (err) => {
+
+	logger.error('無法初始化Chaincode');
+	throw new Error('無法初始化Chaincode');
+
+}).then((results) => {
+
+	var proposalResponses = results[0];
+
+	var proposal = results[1];
+	var header   = results[2];
+	var all_good = true;
+	for(var i in proposalResponses) {
+		let one_good = false;
+		if (proposalResponses && proposalResponses[0].response && proposalResponses[0].response.status === 200) {
+			one_good = true;
+			logger.info('初始化請求良好');
+		} else {
+			logger.error('初始化請求不好');
 		}
-	);
-	eh.connect();
-	eventhubs.push(eh);
-	allEventhubs.push(eh);
-	
-
-	hfc.newDefaultKeyValueStore({
-    	path: "./keypath_"+orgName
-	}).then((store) => {
-		client.setStateStore(store);
-    return getUserContext(client,"http://localhost:7054","admin","adminpw")
-	}).then((admin) => {
-		logger.info('Successfully enrolled user \'admin\'');
-		adminUser = admin;
-		return chain.initialize();
-	}, (err) => {
-		logger.error('Failed to enroll user \'admin\'. ' + err);
-		throw new Error('Failed to enroll user \'admin\'. ' + err);
-
-	}).then((success) => {
-
-		nonce = utils.getNonce();
-		tx_id = chain.buildTransactionID(nonce, adminUser);
-
-		// send proposal to endorser
+		all_good = all_good & one_good;
+	}
+	if (all_good) {
+		logger.info(util.format('成功傳送請求和收到回覆：\n  Status - %s, message - "%s",\n  metadata - "%s", endorsement signature: %s', proposalResponses[0].response.status, proposalResponses[0].response.message, proposalResponses[0].response.payload, proposalResponses[0].endorsement.signature));
 		var request = {
-			chaincodePath: "github.com/example_cc",
-			chaincodeId: "mycc",
-			chaincodeVersion: "v0",
-			fcn: "init",
-			args: ["a","100","b","200"],
-			chainId: channelName,
-			txId: tx_id,
-			nonce: nonce
+			proposalResponses: proposalResponses,
+			proposal: proposal,
+			header: header
 		};
-		return chain.sendInstantiateProposal(request);
 
-	}, (err) => {
+		var deployId = tx_id.toString();
 
-		logger.error('Failed to initialize the chain');
-		throw new Error('Failed to initialize the chain');
+		var eventPromises = [];
+		eventhubs.forEach((eh) => {
+			let txPromise = new Promise((resolve, reject) => {
+				let handle = setTimeout(reject, 30000);
 
-	}).then((results) => {
+				eh.registerTxEvent(deployId.toString(), (tx, code) => {
+					logger.info('Chaincode 初始化交易已經提交到peer '+ eh.ep._endpoint.addr);
+					clearTimeout(handle);
+					eh.unregisterTxEvent(deployId);
 
-		var proposalResponses = results[0];
-
-		var proposal = results[1];
-		var header   = results[2];
-		var all_good = true;
-		for(var i in proposalResponses) {
-			let one_good = false;
-			if (proposalResponses && proposalResponses[0].response && proposalResponses[0].response.status === 200) {
-				one_good = true;
-				logger.info('instantiate proposal was good');
-			} else {
-				logger.error('instantiate proposal was bad');
-			}
-			all_good = all_good & one_good;
-		}
-		if (all_good) {
-			logger.info(util.format('Successfully sent Proposal and received ProposalResponse: Status - %s, message - "%s", metadata - "%s", endorsement signature: %s', proposalResponses[0].response.status, proposalResponses[0].response.message, proposalResponses[0].response.payload, proposalResponses[0].endorsement.signature));
-			var request = {
-				proposalResponses: proposalResponses,
-				proposal: proposal,
-				header: header
-			};
-
-			// set the transaction listener and set a timeout of 30sec
-			// if the transaction did not get committed within the timeout period,
-			// fail the test
-			var deployId = tx_id.toString();
-
-			var eventPromises = [];
-			eventhubs.forEach((eh) => {
-				let txPromise = new Promise((resolve, reject) => {
-					let handle = setTimeout(reject, 30000);
-
-					eh.registerTxEvent(deployId.toString(), (tx, code) => {
-						logger.info('The chaincode instantiate transaction has been committed on peer '+ eh.ep._endpoint.addr);
-						clearTimeout(handle);
-						eh.unregisterTxEvent(deployId);
-
-						if (code !== 'VALID') {
-							logger.error('The chaincode instantiate transaction was invalid, code = ' + code);
-							reject();
-						} else {
-							logger.info('The chaincode instantiate transaction was valid.');
-							resolve();
-						}
-					});
+					if (code !== 'VALID') {
+						logger.error('Chaincode 初始化交易無效, code = ' + code);
+						reject();
+					} else {
+						logger.info('Chaincode 初始化交易有效');
+						resolve();
+					}
 				});
-				eventPromises.push(txPromise);
 			});
+			eventPromises.push(txPromise);
+		});
 
-			var sendPromise = chain.sendTransaction(request);
-			return Promise.all([sendPromise].concat(eventPromises))
-			.then((results) => {
-				logger.debug('Event promise all complete and testing complete');
-				return results[0]; // the first returned value is from the 'sendPromise' which is from the 'sendTransaction()' call
-			}).catch((err) => {
-				logger.error('Failed to send instantiate transaction and get notifications within the timeout period.');
-				throw new Error('Failed to send instantiate transaction and get notifications within the timeout period.');
-			});
-		} else {
-			logger.error('Failed to send instantiate Proposal or receive valid response. Response null or status is not 200. exiting...');
-			throw new Error('Failed to send instantiate Proposal or receive valid response. Response null or status is not 200. exiting...');
-		}
-	}, (err) => {
-		logger.error('Failed to send instantiate proposal due to error: ' + err.stack ? err.stack : err);
-		throw new Error('Failed to send instantiate proposal due to error: ' + err.stack ? err.stack : err);
-	}).then((response) => {
-		if (response.status === 'SUCCESS') {
-			logger.info('Successfully sent transaction to the orderer.');
-			isSuccess = true;
-			process.exit();
-		} else {
-			logger.error('Failed to order the transaction. Error code: ' + response.status);
-			throw new Error('Failed to order the transaction. Error code: ' + response.status);
-		}
-	}, (err) => {
-		logger.error('Failed to send instantiate due to error: ' + err.stack ? err.stack : err);
-		throw new Error('Failed to send instantiate due to error: ' + err.stack ? err.stack : err);
-	});
+		var sendPromise = chain.sendTransaction(request);
+		return Promise.all([sendPromise].concat(eventPromises))
+		.then((results) => {
+			logger.debug('事件 promise 全部完成和測試完成');
+			return results[0]; 
+		}).catch((err) => {
+			logger.error('無法傳送初始化交易和得到超時通知');
+			throw new Error('無法傳送初始化交易和得到超時通知');
+		});
+	} else {
+		logger.error('無法傳送初始化請求或收到有效Response,Response null or status is not 200,結束...');
+		throw new Error('無法傳送初始化請求或收到有效Response,Response null or status is not 200,結束...');
+	}
+}, (err) => {
+	logger.error(' 無法傳送初始化請求 error: ' + err.stack ? err.stack : err);
+	throw new Error('無法傳送初始化請求 error: ' + err.stack ? err.stack : err);
+}).then((response) => {
+	if (response.status === 'SUCCESS') {
+		logger.info('成功傳送交易到Orderer');
+		isSuccess = true;
+		process.exit();
+	} else {
+		logger.error('無法交易 Error code: ' + response.status);
+		throw new Error('無法交易 Error code: ' + response.status);
+	}
+}, (err) => {
+	logger.error('無法傳送初始化 error: ' + err.stack ? err.stack : err);
+	throw new Error('無法傳送初始化 error: ' + err.stack ? err.stack : err);
+});

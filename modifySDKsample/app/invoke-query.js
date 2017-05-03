@@ -29,15 +29,14 @@ var copService = require('fabric-ca-client/lib/FabricCAClientImpl.js');
 var log4js = require('log4js');
 var logger = log4js.getLogger("Query-Chaincode");
 logger.setLevel('DEBUG');
-//######################
-
+//##########################
 function login(client,ca_client,username,password){
     var member=null;
     return ca_client.enroll({
         enrollmentID: username,
         enrollmentSecret: password
     }).then((enrollment) => {
-        console.log('Successfully enrolled user \'' + username + '\'');
+        console.log('成功註冊用戶： \'' + username + '\'');
         member = new User(username, client);
         return member.setEnrollment(enrollment.key, enrollment.certificate, mspid);
     }).then(() => {
@@ -45,24 +44,23 @@ function login(client,ca_client,username,password){
     }).then(() => {
         return member;
     }).catch((err) => {
-        console.log('Failed to enroll and persist user. Error: ' + err.stack ? err.stack : err);
-        throw new Error('Failed to obtain an enrolled user');
+        console.log('无法注册用戶。Error: ' + err.stack ? err.stack : err);
+        throw new Error('無法獲取注册用戶');
     });
 }
 function getUserContext(client,caUrl,username,password){
     return client.getUserContext(username).then((user) => {
         if (user && user.isEnrolled()) {
-            console.log('Successfully loaded member from persistence');
+            console.log('從檔案成功載入成員');
             return user;
         } else {
-            // need to enroll it with CA server
             var ca_client = new copService(caUrl);
             
             return login(client,ca_client,username,password)
         }
     });
 }
-//######################
+//##########################
 
 var tx_id = null;
 var nonce = null;
@@ -70,10 +68,11 @@ var adminUser = null;
 var mspid = null;
 
 
-
 logger.debug('\n============ Query B Val ============\n')
 	var client = new hfc();
 	var channelName="mychannel"
+	var orgName = "peerOrg1"
+	mspid="Org1MSP"
 	var chain = client.newChain(channelName);
 
 	var data=fs.readFileSync(path.join(__dirname, "../artifacts/tls/orderer/ca-cert.pem"));
@@ -86,13 +85,7 @@ logger.debug('\n============ Query B Val ============\n')
 			}
 		)
 	);
-	var orgName = "peerOrg1"
-	
 
-	var targets = [];
-	// set up the chain to use each org's 'peer1' for
-	// both requests and events
-	
 	data = fs.readFileSync(path.join(__dirname,"../artifacts/tls/peers/peer0/ca-cert.pem"));
 	var peer0=new Peer(
 		"grpcs://localhost:7051",
@@ -101,11 +94,10 @@ logger.debug('\n============ Query B Val ============\n')
 			'ssl-target-name-override': "peer0"
 		}
 	)
-	targets.push(peer0);
 	chain.addPeer(peer0)
 
-	return hfc.newDefaultKeyValueStore({
-    	path: "./keypath_"+orgName
+	hfc.newDefaultKeyValueStore({
+    	path: __dirname+"/keypath_"+orgName
 	}).then((store) => {
 		client.setStateStore(store);
     	return getUserContext(client,"http://localhost:7054","admin","adminpw")
@@ -114,7 +106,6 @@ logger.debug('\n============ Query B Val ============\n')
 		nonce = utils.getNonce();
 		tx_id = chain.buildTransactionID(nonce, adminUser);
 
-		
 		var request = {
 			chaincodeId: "mycc",
 			chaincodeVersion: "v0",
@@ -127,12 +118,12 @@ logger.debug('\n============ Query B Val ============\n')
 		return chain.queryByChaincode(request);
 	},
 	(err) => {
-		logger.info('Failed to get submitter \'admin\'');
-		logger.error('Failed to get submitter \'admin\'. Error: ' + err.stack ? err.stack : err );
+		logger.info('無法註冊用戶 \'admin\'');
+		logger.error('無法註冊用戶 \'admin\'. Error: ' + err.stack ? err.stack : err );
 	}).then((response_payloads) => {
 		if (response_payloads) {
 			for(let i = 0; i < response_payloads.length; i++) {
-				logger.info('User b now has '+response_payloads[i].toString('utf8')+' after the move')
+				logger.info('使用者 b 移動後現在有 '+response_payloads[i].toString('utf8'))
 				logger.debug('\n============ Query B Val is SUCCESS ============\n')
 			}
 		} else {
@@ -140,7 +131,7 @@ logger.debug('\n============ Query B Val ============\n')
 		}
 	},
 	(err) => {
-		logger.error('Failed to send query due to error: ' + err.stack ? err.stack : err);
+		logger.error('無法傳送Query error: ' + err.stack ? err.stack : err);
 	}).catch((err) => {
-		logger.error('Failed to end to end test with error:' + err.stack ? err.stack : err);
+		logger.error('無法傳送Query error: ' + err.stack ? err.stack : err);
 	});
