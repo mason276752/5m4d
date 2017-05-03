@@ -1,0 +1,13 @@
+#執行檔
+configtxgen
+cryptogen
+##output
+docker-compose.yaml
+*/node_modules/*
+toolAndMsp/*/
+.vscode/*
+*.block
+*.tx
+#垃圾
+.DS_Store
+*.swp

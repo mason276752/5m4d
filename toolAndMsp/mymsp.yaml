@@ -1,0 +1,106 @@
+---
+Profiles:
+    MyTwoOrgs:
+        Orderer:
+            <<: *OrdererDefaults
+            Organizations:
+                - *MyOrdererOrg
+        Application:
+            <<: *ApplicationDefaults
+            Organizations:
+                - *MyOrg1
+                - *MyOrg2
+
+Organizations:
+    - &MyOrdererOrg
+        # Name 不曉得有什麼用 裝飾吧？
+        Name: OrdererOrg
+        ID: MyOrdererMSP
+        # MSPDir目錄
+        MSPDir: mymsp/crypto-config/ordererOrganizations/ordererOrg1/orderers/ordererOrg1Orderer1
+
+        # 加密有關的東西
+        # BCCSP (Blockchain crypto provider): Select which crypto implementation or
+        # library to use
+        BCCSP:
+            Default: SW
+            SW:
+                Hash: SHA2
+                Security: 256
+                # 設定keystore目錄 用途不清楚
+                # Location of Key Store. If this is unset, a location will
+                # be chosen using 'MSPDir'/keystore
+                FileKeyStore:
+                    KeyStore:
+
+    #以下組織給peer使用
+    - &MyOrg1
+        # Name 大概也是裝飾用
+        Name: MyOrg1MSP
+        ID: MyOrg1MSP
+        MSPDir: mymsp/crypto-config/peerOrganizations/peerOrg1/peers/peerOrg1Peer1
+        BCCSP:
+            Default: SW
+            SW:
+                Hash: SHA2
+                Security: 256
+                FileKeyStore:
+                    KeyStore:
+        AnchorPeers:
+            # 不清楚用途
+            # AnchorPeers defines the location of peers which can be used
+            # for cross org gossip communication.  Note, this value is only
+            # encoded in the genesis block in the Application section context
+            - Host: peer1
+              Port: 7051
+
+    - &MyOrg2
+        Name: MyOrg2MSP
+        ID: MyOrg2MSP
+        MSPDir: mymsp/crypto-config/peerOrganizations/peerOrg2/peers/peerOrg2Peer1
+        BCCSP:
+            Default: SW
+            SW:
+                Hash: SHA2
+                Security: 256
+                FileKeyStore:
+                    KeyStore:
+        AnchorPeers:
+            - Host: peer2
+              Port: 7051
+
+Orderer: &OrdererDefaults
+
+    # Orderer Type: The orderer implementation to start
+    # solo 或 kafka
+    OrdererType: solo
+    Addresses:
+        - orderer0:7050
+    
+    # 不清楚 可能是初塊時間
+    # Batch Timeout: The amount of time to wait before creating a batch
+    BatchTimeout: 2s
+
+    #處理大小
+    # Batch Size: Controls the number of messages batched into a block
+    BatchSize:
+        # 最大訊息允許數
+        MaxMessageCount: 10
+        # 允許最大字節數
+        AbsoluteMaxBytes: 99 MB
+        # 不清楚實際用途
+        # Preferred Max Bytes: The preferred maximum number of bytes allowed for
+        # the serialized messages in a batch. A message larger than the preferred
+        # max bytes will result in a batch larger than preferred max bytes.
+        PreferredMaxBytes: 512 KB
+    Kafka:
+        # 卡夫卡服務器？
+        # Brokers: A list of Kafka brokers to which the orderer connects
+        # NOTE: Use IP:port notation
+        Brokers:
+            - 127.0.0.1:9092
+    Organizations:
+
+# 不清楚 應該是給peer的設定
+Application: &ApplicationDefaults
+    Organizations:

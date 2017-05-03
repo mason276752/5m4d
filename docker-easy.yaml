@@ -1,0 +1,68 @@
+version: '2'
+
+services:
+  orderer1:
+    image: hyperledger/fabric-orderer:x86_64-1.0.0-snapshot-7469e565
+    container_name: orderer1
+    environment:
+      # 透過 :6060 顯示運作資料
+      - CORE_PEER_PROFILE_ENABLED=true
+      # 4/17重新編譯 發現必填
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+    command: orderer
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    ports:
+      - 6060:6060
+      - 7050:7050
+
+  peer1:
+    image: hyperledger/fabric-peer:x86_64-1.0.0-snapshot-7469e565
+    container_name: peer1
+    environment:
+      # 透過 :6060 顯示運作資料
+      - CORE_PEER_PROFILE_ENABLED=true
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer1
+      - CORE_PEER_ADDRESSAUTODETECT=true
+    command: bash -c 'sleep 5 && peer node start -o orderer1:7050'
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+    ports:
+      - 7060:6060
+      - 7051:7051
+      - 7053:7053
+    depends_on:
+      - orderer1
+
+  peer2:
+    image: hyperledger/fabric-peer:x86_64-1.0.0-snapshot-7469e565
+    container_name: peer2
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer2
+      - CORE_PEER_ADDRESSAUTODETECT=true
+    command: bash -c 'sleep 5 && peer node start -o orderer1:7050'
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+    ports:
+      - 8051:7051
+      - 8053:7053
+    depends_on:
+      - orderer1
+
+  cli: 
+    image: hyperledger/fabric-peer:x86_64-1.0.0-snapshot-7469e565
+    container_name: cli
+    command: bash -c 'sleep 1000000'
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    environment:
+      # 4/17重新編譯 需設定
+      - GOPATH=/opt/gopath
+    volumes:
+      - $GOPATH/src/github.com/hyperledger/fabric/examples/chaincode/go/chaincode_example02:/opt/gopath/src/chaincode_example02
+    depends_on:
+    - orderer1
+    - peer1
+    - peer2

@@ -1,0 +1,101 @@
+version: '2'
+
+services:
+  orderer1:
+    image: hyperledger/fabric-orderer:x86_64-1.0.0-snapshot-7469e565
+    container_name: orderer1
+    environment:
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      ################################################################
+      - ORDERER_GENERAL_LOGLEVEL=debug # 顯示很多log
+      - ORDERER_GENERAL_GENESISMETHOD=file #由檔案取得 configtx設定 需設定 ORDERER_GENERAL_GENESISFILE
+      - ORDERER_GENERAL_GENESISFILE=/var/hyperledger/orderer/channel_block.block 
+      - ORDERER_GENERAL_LOCALMSPID=MyOrdererMSP #MSPID
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/msp #MSPDIR
+    command: orderer
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    volumes:
+      - ./toolAndMsp/configtxgen_output/:/var/hyperledger/orderer/
+      - ./toolAndMsp/mymsp/crypto-config/ordererOrganizations/ordererOrg1/orderers/ordererOrg1Orderer1/:/var/hyperledger/msp/
+    ports:
+      - 7050:7050
+  
+  couchdb1:
+    container_name: couchdb1
+    image: hyperledger/fabric-couchdb:x86_64-1.0.0-snapshot-7469e565
+    ports:
+      - "5984:5984"
+
+  peer1:
+    image: hyperledger/fabric-peer:x86_64-1.0.0-snapshot-7469e565
+    container_name: peer1
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer1
+      - CORE_PEER_ADDRESSAUTODETECT=true
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1:5984
+      ################################################################
+      - CORE_PEER_LOCALMSPID=MyOrg1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+    command: bash -c 'sleep 5 && peer node start -o orderer1:7050 --peer-defaultchain false' # 4/20 應該是 --peer-defaultchain=false 但不知為何 無效 依然嘗試 與orderer0:7050 連線
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ./toolAndMsp/mymsp/crypto-config/peerOrganizations/peerOrg1/peers/peerOrg1Peer1/:/etc/hyperledger/msp/peer/
+    ports:
+      - 7051:7051
+      - 7053:7053
+    depends_on:
+      - orderer1
+      - couchdb1
+
+  couchdb2:
+    container_name: couchdb2
+    image: hyperledger/fabric-couchdb:x86_64-1.0.0-snapshot-7469e565
+    ports:
+      - "6984:5984"
+
+  peer2:
+    image: hyperledger/fabric-peer:x86_64-1.0.0-snapshot-7469e565
+    container_name: peer2
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer2
+      - CORE_PEER_ADDRESSAUTODETECT=true
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb2:5984
+      ################################################################
+      - CORE_PEER_LOCALMSPID=MyOrg2MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+    command: bash -c 'sleep 5 && peer node start -o orderer1:7050 --peer-defaultchain false' #--peer-defaultchain=false
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ./toolAndMsp/mymsp/crypto-config/peerOrganizations/peerOrg2/peers/peerOrg2Peer1/:/etc/hyperledger/msp/peer/
+    ports:
+      - 8051:7051
+      - 8053:7053
+    depends_on:
+      - orderer1
+      - couchdb2
+
+  cli: 
+    image: hyperledger/fabric-peer:x86_64-1.0.0-snapshot-7469e565
+    container_name: cli
+    command: bash -c 'sleep 1000000'
+    environment:
+      # 4/17重新編譯 需設定
+      - GOPATH=/opt/gopath
+      - CORE_PEER_ID=cli
+      - CORE_PEER_LOCALMSPID=MyOrdererMSP
+      - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/mymsp/crypto-config/ordererOrganizations/ordererOrg1/orderers/ordererOrg1Orderer1/
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    volumes:
+      - ./toolAndMsp/:/opt/gopath/src/github.com/hyperledger/fabric
+      - $GOPATH/src/github.com/hyperledger/fabric/examples/chaincode/go/chaincode_example02:/opt/gopath/src/chaincode_example02
+      - $GOPATH/src/github.com/hyperledger/fabric/examples/chaincode/go/marbles02:/opt/gopath/src/marbles02
+    depends_on:
+    - orderer1
+    - peer1
+    - peer2
