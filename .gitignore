@@ -8,6 +8,7 @@ toolAndMsp/*/
 .vscode/*
 *.block
 *.tx
+admin
 #垃圾
 .DS_Store
 *.swp
