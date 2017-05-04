@@ -1,3 +1,11 @@
+git clone https://github.com/asararatnakar/fabric_v1_nodesample
+cd fabric_v1_nodesample
+git checkout 94a3593402
+npm install "https://github.com/fabrice102/node-hashtable.git"
+
+
+
+
 ################### easy ####################
 
 docker run --name orderer1 \
@@ -97,7 +105,7 @@ export CORE_PEER_ADDRESS=peer1:7051
 peer chaincode query -o orderer1:7050 -C channel -n marbles -c '{"Args":["getMarblesByRange","marble1","marble3"]}'
 
 
-####################################################
+####################### test chaincode #############################
 peer channel create -o orderer1:7050 -c chtest
 CORE_PEER_ADDRESS=peer1:7051 peer channel join -o orderer1:7050 -b chtest.block
 CORE_PEER_ADDRESS=peer2:7051 peer channel join -o orderer1:7050 -b chtest.block
