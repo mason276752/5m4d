@@ -1,5 +1,5 @@
-請先建立好Hyperledger 環境
-Fabric版本 git checkout 7469e565f4
+請先建立好Hyperledger 環境\
+Fabric版本 git checkout 7469e565f4\
 run ./make
 # 參數:
 -b      -block                      configtxgen輸出 .block 檔名\
